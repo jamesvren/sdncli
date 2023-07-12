@@ -19,20 +19,22 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
                 table.set_titles((&fields).into());
                 for obj in array {
                     let mut r = Vec::new();
-                    let dict = obj.as_object().unwrap();
-                    fields.iter().for_each(|f| {
-                        if let Some(v) = dict.get(f) {
-                            r.push(Cell::new(&v.to_string()));
-                        }
-                    });
+                    if let Some(dict) = obj.as_object() {
+                        fields.iter().for_each(|f| {
+                            if let Some(v) = dict.get(f) {
+                                r.push(Cell::new(&v.to_string()));
+                            }
+                        });
+                    }
                     table.add_row(Row::new(r));
                 };
             },
             None => {
                 for obj in array {
                     table.add_row(row![Fguc => "KEY", "VALUE"]);
-                    let dict = obj.as_object().unwrap();
-                    dict.iter().for_each(|(k, v)| { table.add_row(row![k,v]); });
+                    if let Some(dict) = obj.as_object() {
+                        dict.iter().for_each(|(k, v)| { table.add_row(row![k,v]); });
+                    }
                 }
             },
         }

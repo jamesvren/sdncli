@@ -21,15 +21,6 @@ pub struct ResourceBuilder {
     body: Resource,
 }
 
-//impl Default for Data {
-//    fn default() -> Self {
-//        fields: vec![],
-//        filters: HashMap::<&str, &str>::new(),
-//        id: None,
-//        resource: Value::Map::new(),
-//    }
-//}
-
 impl ResourceBuilder {
     pub fn new() -> Self {
         Self {
@@ -84,13 +75,9 @@ impl ResourceBuilder {
     }
 
     pub fn resource(&mut self, resource: Map<String, Value>) -> &mut Self {
-        //if let Value::Object(ref mut map) = self.body.data.resource {
-            for (k, v) in resource {
-                //map["resource"].as_object_mut().unwrap().insert(k, v);
-                self.body.data.resource.insert(k, v);
-            }
-        //}
-        //self.resource = resource;
+        for (k, v) in resource {
+            self.body.data.resource.insert(k, v);
+        }
         self
     }
 

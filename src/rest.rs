@@ -61,7 +61,7 @@ impl Output for Response {
             Some(0) => Ok(()),
             _ => {
                 let text = self.text().await?;
-                debug!("Response: {}", text);
+                debug!("Output Response: {}", text);
                 match serde_json::from_str::<Value>(&text) {
                     Ok(json_value) if fmt == "table" => Ok(json_to_table(&json_value, fields)),
                     Ok(json_value) => Ok(json_output(&json_value)),
@@ -145,10 +145,10 @@ impl Rest {
             .error_for_status()?
             .json()
             .await?;
-        debug!("{:#?}", response);
+        debug!("FQ Name: {:#?}", response);
         let wanted: Vec<HashMap<String, Value>> = response
             .into_iter()
-            .filter(|res| res["name"] == name)
+            .filter(|res| res.get("name") == Some(json!{name}).as_ref())
             .collect();
         match wanted.len() {
             0 => Err(anyhow!("{} Not Found", name)),
@@ -221,10 +221,6 @@ pub async fn get_token(cfg: &config::Auth) -> anyhow::Result<String> {
         .await?
         .error_for_status()?;
     debug!("{:#?}", response);
-    //let status = response.status();
-    //if status != reqwest::StatusCode::OK {
-    //    anyhow::bail!("{} {}", status, response.text().await?)
-    //}
     match &version as &str {
         "v3" => {
             Ok(response.headers()["x-subject-token"]
@@ -245,13 +241,6 @@ pub async fn get_token(cfg: &config::Auth) -> anyhow::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    //use tokio_test;
-
-    //macro_rules! aw {
-    //    ($e:expr) => {
-    //        tokio_test::block_on($e)
-    //    }
-    //}
 
     #[tokio::test]
     async fn test_rest() -> Result<(), anyhow::Error> {
