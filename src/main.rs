@@ -1,160 +1,158 @@
-use clap::Parser;
-use anyhow;
-use uuid::Uuid;
+mod cli;
+mod config;
+mod db;
+mod inspect;
+mod rest;
 
-use sdncli::{
-    rest::{self, Rest, Output},
-    config,
-    Arg,
-    arg::Commands,
-    resource::ResourceBuilder,
-    introspect::Introspect,
-};
+use clap::{ArgMatches, FromArgMatches as _};
+use cli::{Operations, Opts, OutputFormat, BUILDIN_CMD};
+use rest::resource::ResourceBuilder;
+use rest::rest::get_token;
+use rest::rest::Output;
+use rest::rest::Rest;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-
     env_logger::init();
-    let cfg = config::read_config()?;
-    let opts = Arg::parse();
-    let output_format = opts.output;
-    let mut builder = ResourceBuilder::new();
-    let mut api = Rest::new(&cfg);
+    let cli = cli::build_cli()?;
+    let cli = db::cli::build_cli(cli);
+    let cli = inspect::cli::build_cli(cli);
 
-    let oformat = match output_format {
-        Some(o) => o.to_string(),
-        None => "table".to_string(),
-    };
-    // Read request from JSON file
-    if let Some(file) = &opts.file {
+    let matches = cli.get_matches();
+    let opt = cli::cli_matches(&matches);
+    if handle_cli(&opt).await? {
+        return Ok(());
+    }
+    if handle_buildin(&matches).await? {
+        return Ok(());
+    }
+    handle_rest(&matches, &opt).await?;
+    db::cli::handle_cli(&matches).await?;
+    inspect::cli::handle_cli(&matches).await?;
+
+    Ok(())
+}
+
+async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
+    let cfg = config::read_config()?;
+    let mut api = Rest::new(&cfg);
+    let output_format = opt.output;
+
+    // Request by JSON file
+    if let Some(file) = &opt.file {
+        let oformat = output_format.unwrap_or(OutputFormat::Table).to_string();
         let json_config = config::read_json_file(file)?;
+
         if json_config.port.is_some() {
             api.set_rest_port(json_config.port.unwrap());
         }
         if json_config.method == "get" {
-            api.get(&json_config.uri).await?
-               .output(&oformat, None).await?;
+            api.get(&json_config.uri)
+                .await?
+                .output(&oformat, None)
+                .await?;
         } else if json_config.method == "post" {
-            api.post(&json_config.uri, json_config.body).await?
-               .output(&oformat, None).await?;
+            api.post(&json_config.uri, json_config.body)
+                .await?
+                .output(&oformat, None)
+                .await?;
         }
-        return Ok(())
+        return Ok(true);
     }
 
-    // Do request from URI
-    if let Some(uri) = &opts.uri {
-        let oformat = match output_format {
-            Some(o) => o.to_string(),
-            None => "json".to_string(),
-        };
-        api.get(uri).await?
-            .output(&oformat, None).await?;
-        return Ok(())
+    // Request by URL
+    if let Some(uri) = &opt.uri {
+        let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
+        if let Some(data) = &opt.data {
+            api.post(uri, data.clone()).await?.output(&oformat, None).await?;
+        } else {
+            api.get(uri).await?.output(&oformat, None).await?;
+        }
+        return Ok(true);
     }
-    // Else use command to build request body
-    if let Some(cmd) = &opts.command {
-        match cmd {
-            Commands::Create { resource, name , attr, .. } |
-            Commands::Oper { resource, name , attr, .. } => {
-                let res = cfg.get_resource(resource)?;
-                let oper = cmd.oper();
-                if oper == "CREATE" {
-                    builder.name(name);
-                } else {
-                    match Uuid::parse_str(name) {
-                        Ok(id) => builder.id(id),
-                        Err(_) => {
-                            let id = api.name_to_id(&res.uri, name).await?;
-                            builder.name(name).id(id)
-                        },
-                    };
-                }
-                if let Some(attr) = attr {
-                    for a in attr {
-                        builder.resource(a.as_object().unwrap().clone());
-                    }
-                }
-                let body = builder
-                    .res_type(&res.resource)
-                    .oper(&oper)
-                    .build()?;
 
-                api.post(&res.uri, body).await?.output(&oformat, None).await?;
-            },
-            Commands::Update { resource, names , attr } => {
-                let res = cfg.get_resource(resource)?;
-                if let Some(attr) = attr {
-                    for a in attr {
-                        builder.resource(a.as_object().unwrap().clone());
-                    }
+    Ok(false)
+}
+
+async fn handle_buildin(matches: &ArgMatches) -> Result<bool, anyhow::Error> {
+    let mut handled = false;
+    let cfg = config::read_config()?;
+    for cmd in &BUILDIN_CMD {
+        if let Some(_matches) = matches.subcommand_matches(cmd) {
+            handled = true;
+            if *cmd == "token" {
+                println!("{}", get_token(&cfg.auth).await?);
+            }
+        }
+    }
+    Ok(handled)
+}
+
+async fn handle_rest(matches: &ArgMatches, opt: &Opts) -> Result<(), anyhow::Error> {
+    let cfg = config::read_config()?;
+    let mut api = Rest::new(&cfg);
+    let oformat = opt.output.unwrap_or(OutputFormat::Table).to_string();
+    let mut builder = ResourceBuilder::new();
+
+    for res in cfg.resource {
+        if let Some(matches) = matches.subcommand_matches(res.cmd.as_str()) {
+            let opers = Operations::from_arg_matches(matches)
+                .map_err(|err| err.exit())
+                .unwrap();
+            let oper = opers.oper();
+            builder.res_type(&res.resource).oper(&oper);
+
+            let (names, attr, field, filter) = match opers {
+                Operations::Create { name, attr } => (Some(vec![name]), attr, None, None),
+                Operations::Update { names, attr } => (Some(names), Some(attr), None, None),
+                Operations::Delete { names } => (Some(names), None, None, None),
+                Operations::Show { names, field } => (Some(names), None, field, None),
+                Operations::List { filter, field } => (None, None, field, filter),
+                Operations::Oper { name, attr, .. } => (Some(vec![name]), attr, None, None),
+            };
+
+            if let Some(filters) = filter {
+                builder.filters(filters.clone());
+            };
+
+            if let Some(fields) = field {
+                builder.fields(fields.to_vec());
+            };
+
+            if let Some(attr) = attr {
+                for a in attr {
+                    builder.resource(a.as_object().unwrap().clone());
                 }
-                builder
-                    .res_type(&res.resource)
-                    .oper(&cmd.oper());
+            }
+
+            // This should be last action since it will send request.
+            if let Some(names) = &names {
                 for name in names {
-                    match Uuid::parse_str(name) {
-                        Ok(id) => builder.id(id),
-                        Err(_) => {
-                            let id = api.name_to_id(&res.uri, name).await?;
-                            builder.name(name).id(id)
-                        },
-                    };
+                    if oper == "CREATE" {
+                        builder.name(name);
+                    } else {
+                        match Uuid::parse_str(name) {
+                            Ok(id) => builder.id(id),
+                            Err(_) => {
+                                let id = api.name_to_id(&res.uri, name).await?;
+                                builder.name(name).id(id)
+                            }
+                        };
+                    }
                     let body = builder.build()?;
-
-                    api.post(&res.uri, body).await?.output(&oformat, None).await?;
+                    api.post(&res.uri, body)
+                        .await?
+                        .output(&oformat, None)
+                        .await?;
                 }
-            },
-            Commands::Show { resource, names, field } |
-            Commands::Delete { resource, names, field } => {
-                let res = cfg.get_resource(resource)?;
-                if let Some(fields) = field {
-                    builder.fields(fields.to_vec());
-                };
-                builder
-                    .res_type(&res.resource)
-                    .oper(&cmd.oper());
-                for name in names {
-                    match Uuid::parse_str(name) {
-                        Ok(id) => builder.id(id),
-                        Err(_) => {
-                            let id = api.name_to_id(&res.uri, name).await?;
-                            builder.name(name).id(id)
-                        },
-                    };
-                    let body = builder.build()?;
-
-                    api.post(&res.uri, body).await?.output(&oformat, field.clone()).await?;
-                }
-            },
-            Commands::List { resource, filter, field } => {
-                let res = cfg.get_resource(resource)?;
-                if let Some(filters) = filter {
-                    builder.filters(filters.clone());
-                };
-                if let Some(fields) = field {
-                    builder.fields(fields.to_vec());
-                };
-                let body = builder
-                    .res_type(&res.resource)
-                    .oper(&cmd.oper())
-                    .build()?;
-
-                api.post(&res.uri, body).await?.output(&oformat, field.clone()).await?;
-            },
-            Commands::Token => {
-               println!("{}", rest::get_token(&cfg.auth).await?);
-               return Ok(());
-            },
-            Commands::Inspect(inspect) => {
-                let ist = Introspect::new(&inspect.ip,
-                                           inspect.service.to_port(),
-                                           inspect.service.to_string());
-                if let Some(level) = inspect.log {
-                    ist.set_logging(level.to_syslog()).await?;
-                } else {
-                    ist.get("Snh_SandeshUVECacheReq?tname=NodeStatus").await?;
-                }
-            },
+            } else {
+                let body = builder.build()?;
+                api.post(&res.uri, body)
+                    .await?
+                    .output(&oformat, None)
+                    .await?;
+            }
         }
     }
 

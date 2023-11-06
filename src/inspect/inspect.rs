@@ -1,25 +1,25 @@
-use reqwest::{self, Client, Response, RequestBuilder, Method};
-use roxmltree::{
-    Document,
-};
 use log::debug;
+use reqwest::{self, Client};
+use roxmltree::Document;
 
 pub struct Introspect {
     http: Client,
     base_url: String,
-    service: String,
+    _service: String,
 }
 
 impl Introspect {
     pub fn new(ip: &str, port: u32, service: String) -> Self {
         Self {
             http: Client::new(),
-            service: service,
+            _service: service,
             base_url: format!("http://{}:{}/", ip, port),
         }
     }
     pub async fn get(self, url: &str) -> anyhow::Result<()> {
-        let response = self.http.get(self.base_url + url)
+        let response = self
+            .http
+            .get(self.base_url + url)
             .send()
             .await?
             .text()
@@ -32,7 +32,9 @@ impl Introspect {
             "Snh_SandeshLoggingParamsSet?enable=&category=&log_level={}&trace_print=&enable_flow_log=",
             level
             );
-        let response = self.http.get(self.base_url + url.as_str())
+        let response = self
+            .http
+            .get(self.base_url + url.as_str())
             .send()
             .await?
             .text()
@@ -66,4 +68,3 @@ fn xml_parser(data: &str) -> anyhow::Result<()> {
     }
     Ok(())
 }
-

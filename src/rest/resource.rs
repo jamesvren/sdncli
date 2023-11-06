@@ -1,7 +1,7 @@
-use serde_json::{json, Map, Value};
-use serde::Serialize;
-use uuid::Uuid;
 use anyhow;
+use serde::Serialize;
+use serde_json::{json, Map, Value};
+use uuid::Uuid;
 
 #[derive(Serialize)]
 pub struct Resource {
@@ -37,11 +37,11 @@ impl ResourceBuilder {
                     "type": "",
                     "user_id": "44faef681cd34e1c80b8520dd6aebad4",
                 }),
-            }
+            },
         }
     }
 
-    pub fn res_type(&mut self, res: &str) ->&mut Self {
+    pub fn res_type(&mut self, res: &str) -> &mut Self {
         self.body.context["type"] = res.into();
         self
     }
@@ -53,7 +53,10 @@ impl ResourceBuilder {
 
     pub fn id(&mut self, id: Uuid) -> &mut Self {
         self.body.data.id = Some(id);
-        self.body.data.resource.insert(String::from("id"), json!(id));
+        self.body
+            .data
+            .resource
+            .insert(String::from("id"), json!(id));
         self
     }
 

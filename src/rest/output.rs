@@ -1,11 +1,5 @@
+use prettytable::{format, row, Cell, Row, Table};
 use serde_json::Value;
-use prettytable::{
-    Table,
-    Cell,
-    row,
-    Row,
-    format,
-};
 
 pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
     let mut table = Table::new();
@@ -27,16 +21,18 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
                         });
                     }
                     table.add_row(Row::new(r));
-                };
-            },
+                }
+            }
             None => {
                 for obj in array {
                     table.add_row(row![Fguc => "KEY", "VALUE"]);
                     if let Some(dict) = obj.as_object() {
-                        dict.iter().for_each(|(k, v)| { table.add_row(row![k,v]); });
+                        dict.iter().for_each(|(k, v)| {
+                            table.add_row(row![k, v]);
+                        });
                     }
                 }
-            },
+            }
         }
     } else if value.is_object() {
         len = 1;
@@ -51,9 +47,11 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
                     }
                 });
                 table.add_row(Row::new(r));
-            },
+            }
             None => {
-                dict.iter().for_each(|(k, v)| { table.add_row(row![k,v]); });
+                dict.iter().for_each(|(k, v)| {
+                    table.add_row(row![k, v]);
+                });
             }
         }
     }

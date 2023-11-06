@@ -1,21 +1,14 @@
-use std::{
-    fs,
-    io,
-    env,
-    path::PathBuf,
-};
 use anyhow::{anyhow, Error};
-use toml;
-use serde::Deserialize;
-use json5;
-use serde_json::Value;
 use log::debug;
+use serde::Deserialize;
+use serde_json::Value;
+use std::{env, fs, io, path::PathBuf, net::IpAddr};
 
 #[derive(Deserialize)]
 pub struct FileConfig {
     pub method: String,
     pub port: Option<u32>,
-    #[serde(rename="api")]
+    #[serde(rename = "api")]
     pub uri: String,
     pub body: Value,
 }
@@ -46,7 +39,7 @@ pub struct Auth {
 #[derive(Debug, Deserialize)]
 pub struct Resource {
     pub cmd: String,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     pub resource: String,
     pub uri: String,
     pub attr: Option<toml::Value>,
@@ -58,15 +51,16 @@ pub fn read_config() -> Result<Config, Error> {
             let config: Config = toml::from_str(&content)?;
             debug!("{:#?}", config);
             Ok(config)
-        },
+        }
         Err(_) => {
             gen_config()?;
-            println!("{}\n{}\n{}",
-                     "Config file `config.toml` generated in same directory as the executable.",
-                     "- Please set correct AUTH information.",
-                     "- Add resource information to build command.");
-            Err(anyhow!("Please re-run this after `EDIT` config.toml."))
-        },
+            println!("Config file `config.toml` generated in directory same as the executable.");
+            println!("- You can add command or change Api IP in config.toml");
+            println!("<Press Enter to continue ...>");
+            let mut buf = String::new();
+            io::stdin().read_line(&mut buf)?;
+            read_config()
+        }
     }
 }
 
@@ -78,20 +72,33 @@ pub fn read_json_file(file: &PathBuf) -> Result<FileConfig, Error> {
     }
 }
 
-impl Config {
-    pub fn get_resource(&self, cmd: &str) -> anyhow::Result<&Resource> {
-        let cmds: Vec<_> = self.resource.iter().filter(|c| c.cmd == cmd).collect();
-        if !cmds.is_empty() {
-            return Ok(cmds[0]);
-        }
-        Err(anyhow!("No reourcce found for command {}, please check config.toml", cmd))
-    }
-}
+//impl Config {
+//    pub fn get_resource(&self, cmd: &str) -> anyhow::Result<&Resource> {
+//        let cmds: Vec<_> = self.resource.iter().filter(|c| c.cmd == cmd).collect();
+//        if !cmds.is_empty() {
+//            return Ok(cmds[0]);
+//        }
+//        Err(anyhow!(
+//            "No reourcce found for command {}, please check config.toml",
+//            cmd
+//        ))
+//    }
+//}
 
-fn gen_config() -> io::Result<()> {
+//fn gen_config() -> io::Result<()> {
+fn gen_config() -> Result<(), Error> {
+    println!("Please input IP for api: ");
+    //io::stdout().flush().unwrap();
+
+    // Get IP from stdin user input
+    let mut ip = String::new();
+    io::stdin().read_line(&mut ip)?;
+    let ip = ip.trim();
+    ip.parse::<IpAddr>()?;
+
     let config_toml = toml::toml! {
         [auth]
-        host = "10.130.151.80"
+        host = ip
         port = 6000
         user = "ArcherAdmin"
         password = "ArcherAdmin@123"
@@ -102,7 +109,7 @@ fn gen_config() -> io::Result<()> {
         port = 8082
 
         [[resource]]
-        cmd = "network"
+        cmd = "net"
         type = "network"
         uri = "/neutron/network"
         attr = [
@@ -123,7 +130,7 @@ fn gen_config() -> io::Result<()> {
         uri = "/neutron/port"
 
         [[resource]]
-        cmd = "router"
+        cmd = "rtr"
         type = "router"
         uri = "/neutron/router"
 
@@ -197,12 +204,12 @@ fn gen_config() -> io::Result<()> {
         type = "segment_firewall_rule"
         uri = "/neutron/segment_firewall_rule"
 
-        [[tag]]
+        [[resource]]
         cmd = "tag"
         type = "tag"
         uri = "/neutron/tag"
 
-        [[tag]]
+        [[resource]]
         cmd = "provider"
         type = "net_provider"
         uri = "/neutron/net_provider"
@@ -213,6 +220,7 @@ fn gen_config() -> io::Result<()> {
 //"method": "get",
 "method": "post",
 "api": "/neutron/network",
+//"api": "/virtual-networks",
 //"api": "/analytics/uves/nicstats/*?cfilt=UveNicStats:status",
 //"api": "/analytics/uves/vrouter/*?cfilt=NodeStatus:process_status",
 //"api": "/analytics/switch_topology",
@@ -245,7 +253,10 @@ fn gen_config() -> io::Result<()> {
 
 }
 "#;
-    fs::write(get_name(FileType::Toml)?, toml::to_string(&config_toml).unwrap())?;
+    fs::write(
+        get_name(FileType::Toml)?,
+        toml::to_string(&config_toml).unwrap(),
+    )?;
     fs::write(get_name(FileType::Json)?, json5_str)?;
     Ok(())
 }
@@ -263,4 +274,3 @@ fn get_name(ftype: FileType) -> io::Result<PathBuf> {
     }
     Ok(path)
 }
-
