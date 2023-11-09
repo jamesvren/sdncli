@@ -11,6 +11,8 @@ use rest::rest::get_token;
 use rest::rest::Output;
 use rest::rest::Rest;
 use uuid::Uuid;
+use chrono::NaiveDateTime;
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -58,6 +60,7 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
                 .output(&oformat, None)
                 .await?;
         }
+        println!("API IP: {}", api.host);
         return Ok(true);
     }
 
@@ -69,7 +72,26 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
         } else {
             api.get(uri).await?.output(&oformat, None).await?;
         }
+        println!("API IP: {}", api.host);
         return Ok(true);
+    }
+
+    // Convert timestamp to datetime
+    if let Some(timestamp) = opt.timestamp {
+        const A_BILLION: i64 = 1_000_000_000;
+        let date = match timestamp / A_BILLION {
+            0..=9 => NaiveDateTime::from_timestamp_opt(timestamp, 0),
+            10..=9999 => NaiveDateTime::from_timestamp_millis(timestamp),
+            _ => NaiveDateTime::from_timestamp_micros(timestamp),
+        };
+        println!("{date:?}");
+    }
+
+    // Get API cache
+    if opt.cache {
+        let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
+        api.post("/obj-cache", json!({"count": 999999})).await?.output(&oformat, None).await?;
+        println!("API IP: {}", api.host);
     }
 
     Ok(false)
@@ -97,6 +119,17 @@ async fn handle_rest(matches: &ArgMatches, opt: &Opts) -> Result<(), anyhow::Err
 
     for res in cfg.resource {
         if let Some(matches) = matches.subcommand_matches(res.cmd.as_str()) {
+            let uri: String;
+            if res.resource == "member" {
+                let pool = matches.get_one::<String>("pool").unwrap();
+                let pool_id = match Uuid::parse_str(pool) {
+                    Ok(id) => id,
+                    Err(_) => api.name_to_id("/neutron/pool", pool).await?,
+                };
+                uri = format!("/neutron/pool/{pool_id}/member");
+            } else {
+                uri = res.uri;
+            }
             let opers = Operations::from_arg_matches(matches)
                 .map_err(|err| err.exit())
                 .unwrap();
@@ -135,24 +168,25 @@ async fn handle_rest(matches: &ArgMatches, opt: &Opts) -> Result<(), anyhow::Err
                         match Uuid::parse_str(name) {
                             Ok(id) => builder.id(id),
                             Err(_) => {
-                                let id = api.name_to_id(&res.uri, name).await?;
+                                let id = api.name_to_id(&uri, name).await?;
                                 builder.name(name).id(id)
                             }
                         };
                     }
                     let body = builder.build()?;
-                    api.post(&res.uri, body)
+                    api.post(&uri, body)
                         .await?
                         .output(&oformat, None)
                         .await?;
                 }
             } else {
                 let body = builder.build()?;
-                api.post(&res.uri, body)
+                api.post(&uri, body)
                     .await?
                     .output(&oformat, None)
                     .await?;
             }
+            println!("API IP: {}", api.host);
         }
     }
 

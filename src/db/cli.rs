@@ -71,14 +71,14 @@ pub async fn handle_cli(matches: &ArgMatches) -> Result<(), anyhow::Error> {
         println!("** DB connected, ready to send query ...");
 
         if let Some(uuid) = cmd.uuid {
-            let q: &str = r#"SELECT blobAsText(column1), value
+            let q: &str = r#"SELECT blobAsText(column1), value, WRITETIME(value)
                              FROM config_db_uuid.obj_uuid_table
                              WHERE key = textAsBlob(?)"#;
             query(&session, q, &uuid).await?;
         }
 
         if let Some(fqname) = cmd.fqname {
-            let q: &str = r#"SELECT blobAsText(column1), value
+            let q: &str = r#"SELECT blobAsText(column1), value, WRITETIME(value)
                              FROM config_db_uuid.obj_fq_name_table
                              WHERE key = textAsBlob(?)"#;
             query(&session, q, &fqname).await?;
@@ -112,9 +112,9 @@ pub async fn handle_cli(matches: &ArgMatches) -> Result<(), anyhow::Error> {
 
 async fn query(session: &Session, q: &str, arg: &str) -> Result<(), anyhow::Error> {
     if let Some(rows) = session.query(q, (arg,)).await?.rows {
-        for row in rows.into_typed::<(String, String)>() {
-            let (prop, value) = row?;
-            println!("{} | {}", prop, serde_json::from_str::<Value>(&value)?);
+        for row in rows.into_typed::<(String, String, i64)>() {
+            let (prop, value, timestamp) = row?;
+            println!("{} | {} | {}", prop, serde_json::from_str::<Value>(&value)?, timestamp);
         }
     }
     Ok(())

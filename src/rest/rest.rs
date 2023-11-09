@@ -17,6 +17,7 @@ use url::Url;
 use uuid::Uuid;
 
 pub struct Rest {
+    pub host: String,
     rest: config::Rest,
     auth: config::Auth,
     client: Client,
@@ -74,7 +75,13 @@ impl Output for Response {
 
 impl Rest {
     pub fn new(cfg: &config::Config) -> Self {
+        // Use auth host if rest host does not set
+        let host = match (&cfg.api.host, &cfg.auth.host) {
+            (Some(host), _) => host,
+            (_, host) => host,
+        };
         Self {
+            host: host.to_string(),
             rest: cfg.api.clone(),
             auth: cfg.auth.clone(),
             client: Client::new(),
@@ -99,12 +106,7 @@ impl Rest {
         if self.token.is_empty() {
             self.token = get_token(&self.auth).await?;
         };
-        // Use auth host if rest host does not set
-        let host = match (&self.rest.host, &self.auth.host) {
-            (Some(host), _) => host,
-            (_, host) => host,
-        };
-        let url = Url::parse(&format!("http://{}:{}/", host, self.rest.port))?.join(uri)?;
+        let url = Url::parse(&format!("http://{}:{}/", self.host, self.rest.port))?.join(uri)?;
         if body.is_some() {
             info!("curl -D - -s -X {} {} -H \"Content-Type:application/json\" -H \"X-Auth-Token:{}\" -d '{}'",
                   method.as_str(), url, self.token, body.as_ref().unwrap());
@@ -160,7 +162,7 @@ impl Rest {
             .filter(|res| res.get("name") == Some(json! {name}).as_ref())
             .collect();
         match wanted.len() {
-            0 => Err(anyhow!("{} {} Not Found", uri.split("/").last().unwrap(), name)),
+            0 => Err(anyhow!("{} {} Not Found", uri.split('/').last().unwrap(), name)),
             1 => Ok(Uuid::parse_str(wanted[0]["id"].as_str().unwrap())?),
             _ => {
                 println!("@@ Found multiple {}:", name);

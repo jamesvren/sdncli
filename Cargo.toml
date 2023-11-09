@@ -28,6 +28,7 @@ roxmltree = "*"
 scylla = "0.10"
 rustyline = "9"
 rustyline-derive = "0.6"
+chrono = "0.4"
 
 [profile.release]
 strip = "debuginfo"

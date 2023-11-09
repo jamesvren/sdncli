@@ -4,7 +4,7 @@ use clap::{
         IntoResettable, OsStr,
         Resettable::{self, *},
     },
-    command, ArgMatches, Args, Command, FromArgMatches as _, Parser, Subcommand as _, ValueEnum,
+    command, ArgMatches, Args, arg, Command, FromArgMatches as _, Parser, Subcommand as _, ValueEnum,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -34,6 +34,14 @@ pub struct Opts {
         help = "Output format for response",
     )]
     pub output: Option<OutputFormat>,
+
+    /// Convert UNIX timestamp to UTC datetime
+    #[arg(short, long)]
+    pub timestamp: Option<i64>,
+
+    /// Get API cache
+    #[arg(long)]
+    pub cache: bool,
 }
 
 pub const BUILDIN_CMD: [&str; 2] = [
@@ -63,7 +71,15 @@ fn build_dynamic_cli(mut cli: Command) -> Result<Command, anyhow::Error> {
 
     // custom command
     for res in cfg.resource {
-        let sub = Command::new(res.cmd).about(format!("- {}", res.resource));
+        let mut sub = Command::new(res.cmd).about(format!("- {}", res.resource));
+        if res.resource == "member" {
+            sub = sub.arg(
+                arg!(
+                    -p --pool <POOL> "The pool this member belong to"
+                )
+                .required(true),
+            );
+        }
         let sub = Operations::augment_subcommands(sub);
         cli = cli.subcommand(sub);
     }
