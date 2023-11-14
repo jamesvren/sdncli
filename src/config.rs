@@ -2,7 +2,7 @@ use anyhow::{anyhow, Error};
 use log::debug;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{env, fs, io, path::PathBuf, net::IpAddr};
+use std::{env, fs, io, net::IpAddr, path::PathBuf};
 
 #[derive(Deserialize)]
 pub struct FileConfig {

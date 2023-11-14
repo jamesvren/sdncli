@@ -114,7 +114,12 @@ async fn query(session: &Session, q: &str, arg: &str) -> Result<(), anyhow::Erro
     if let Some(rows) = session.query(q, (arg,)).await?.rows {
         for row in rows.into_typed::<(String, String, i64)>() {
             let (prop, value, timestamp) = row?;
-            println!("{} | {} | {}", prop, serde_json::from_str::<Value>(&value)?, timestamp);
+            println!(
+                "{} | {} | {}",
+                prop,
+                serde_json::from_str::<Value>(&value)?,
+                timestamp
+            );
         }
     }
     Ok(())

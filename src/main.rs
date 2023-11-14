@@ -4,15 +4,16 @@ mod db;
 mod inspect;
 mod rest;
 
+use chrono::NaiveDateTime;
 use clap::{ArgMatches, FromArgMatches as _};
 use cli::{Operations, Opts, OutputFormat, BUILDIN_CMD};
+use inspect::format_xml;
 use rest::resource::ResourceBuilder;
 use rest::rest::get_token;
 use rest::rest::Output;
 use rest::rest::Rest;
+use serde_json::{json, Value};
 use uuid::Uuid;
-use chrono::NaiveDateTime;
-use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -68,7 +69,10 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
     if let Some(uri) = &opt.uri {
         let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
         if let Some(data) = &opt.data {
-            api.post(uri, data.clone()).await?.output(&oformat, None).await?;
+            api.post(uri, data.clone())
+                .await?
+                .output(&oformat, None)
+                .await?;
         } else {
             api.get(uri).await?.output(&oformat, None).await?;
         }
@@ -85,13 +89,31 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
             _ => NaiveDateTime::from_timestamp_micros(timestamp),
         };
         println!("{date:?}");
+        return Ok(true);
+    }
+
+    // Format XML string
+    if let Some(xml) = &opt.xml {
+        let _ = format_xml(xml, true);
+        return Ok(true);
+    }
+
+    // Format JSON string
+    if let Some(text) = &opt.json {
+        let json: Value = serde_json::from_str(text)?;
+        println!("{json:#}");
+        return Ok(true);
     }
 
     // Get API cache
     if opt.cache {
         let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
-        api.post("/obj-cache", json!({"count": 999999})).await?.output(&oformat, None).await?;
+        api.post("/obj-cache", json!({"count": 999999}))
+            .await?
+            .output(&oformat, None)
+            .await?;
         println!("API IP: {}", api.host);
+        return Ok(true);
     }
 
     Ok(false)
@@ -142,14 +164,16 @@ async fn handle_rest(matches: &ArgMatches, opt: &Opts) -> Result<(), anyhow::Err
                 Operations::Delete { names } => (Some(names), None, None, None),
                 Operations::Show { names, field } => (Some(names), None, field, None),
                 Operations::List { filter, field } => (None, None, field, filter),
-                Operations::Oper { name, attr, .. } => (Some(vec![name]), attr, None, None),
+                Operations::Oper {
+                    name, attr, field, ..
+                } => (Some(vec![name]), attr, field, None),
             };
 
             if let Some(filters) = filter {
                 builder.filters(filters.clone());
             };
 
-            if let Some(fields) = field {
+            if let Some(fields) = &field {
                 builder.fields(fields.to_vec());
             };
 
@@ -176,15 +200,12 @@ async fn handle_rest(matches: &ArgMatches, opt: &Opts) -> Result<(), anyhow::Err
                     let body = builder.build()?;
                     api.post(&uri, body)
                         .await?
-                        .output(&oformat, None)
+                        .output(&oformat, field.clone())
                         .await?;
                 }
             } else {
                 let body = builder.build()?;
-                api.post(&uri, body)
-                    .await?
-                    .output(&oformat, None)
-                    .await?;
+                api.post(&uri, body).await?.output(&oformat, field).await?;
             }
             println!("API IP: {}", api.host);
         }

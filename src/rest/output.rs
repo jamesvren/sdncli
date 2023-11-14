@@ -62,7 +62,7 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
     }
 }
 
-pub fn json_output(value: &Value) {
+pub fn json_output(value: &Value, _fields: Option<Vec<String>>) {
     let mut len = 0;
     if value.is_array() {
         let array = value.as_array().unwrap();

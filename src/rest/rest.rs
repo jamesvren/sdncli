@@ -64,8 +64,14 @@ impl Output for Response {
                 let text = self.text().await?;
                 debug!("Output Response: {}", text);
                 match serde_json::from_str::<Value>(&text) {
-                    Ok(json_value) if fmt == "table" => Ok(json_to_table(&json_value, fields)),
-                    Ok(json_value) => Ok(json_output(&json_value)),
+                    Ok(json_value) if fmt == "table" => {
+                        json_to_table(&json_value, fields);
+                        Ok(())
+                    }
+                    Ok(json_value) => {
+                        json_output(&json_value, fields);
+                        Ok(())
+                    }
                     Err(_) => Ok(println!("{}", text)),
                 }
             }
@@ -162,7 +168,11 @@ impl Rest {
             .filter(|res| res.get("name") == Some(json! {name}).as_ref())
             .collect();
         match wanted.len() {
-            0 => Err(anyhow!("{} {} Not Found", uri.split('/').last().unwrap(), name)),
+            0 => Err(anyhow!(
+                "{} {} Not Found",
+                uri.split('/').last().unwrap(),
+                name
+            )),
             1 => Ok(Uuid::parse_str(wanted[0]["id"].as_str().unwrap())?),
             _ => {
                 println!("@@ Found multiple {}:", name);

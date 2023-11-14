@@ -1,10 +1,7 @@
 use super::config::read_config;
 use clap::{
-    builder::{
-        IntoResettable, OsStr,
-        Resettable::{self, *},
-    },
-    command, ArgMatches, Args, arg, Command, FromArgMatches as _, Parser, Subcommand as _, ValueEnum,
+    arg, command, ArgMatches, Args, Command, FromArgMatches as _, Parser, Subcommand as _,
+    ValueEnum,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -39,15 +36,20 @@ pub struct Opts {
     #[arg(short, long)]
     pub timestamp: Option<i64>,
 
+    /// Format XML string
+    #[arg(short, long)]
+    pub xml: Option<String>,
+
+    /// Format JSON string
+    #[arg(short, long)]
+    pub json: Option<String>,
+
     /// Get API cache
     #[arg(long)]
     pub cache: bool,
 }
 
-pub const BUILDIN_CMD: [&str; 2] = [
-    "token",
-    "loadbalance",
-];
+pub const BUILDIN_CMD: [&str; 2] = ["token", "loadbalance"];
 
 pub fn build_cli() -> Result<Command, anyhow::Error> {
     let cmd = command!()
@@ -97,16 +99,6 @@ pub enum OutputFormat {
     Table,
     Json,
     Text,
-}
-
-impl IntoResettable<OsStr> for OutputFormat {
-    fn into_resettable(self) -> Resettable<OsStr> {
-        match self {
-            OutputFormat::Table => Value(OsStr::from("table")),
-            OutputFormat::Json => Value(OsStr::from("json")),
-            OutputFormat::Text => Value(OsStr::from("text")),
-        }
-    }
 }
 
 impl ToString for OutputFormat {
@@ -173,6 +165,9 @@ pub enum Operations {
         /// Example: -a binding:vif_details='{"port_filter":true}'
         #[arg(short, long, value_parser = key_val_parser)]
         attr: Option<Vec<Value>>,
+        /// Fields to be displayed, example: --field=name,id
+        #[arg(short, long, value_delimiter = ',')]
+        field: Option<Vec<String>>,
         /// Operation string for resource. Please refer to Rest API doc
         #[arg(long)]
         cmd: String,
