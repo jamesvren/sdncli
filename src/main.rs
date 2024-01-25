@@ -14,6 +14,8 @@ use rest::rest::Output;
 use rest::rest::Rest;
 use serde_json::{json, Value};
 use uuid::Uuid;
+use flate2::read::ZlibDecoder;
+use std::io::Read;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -67,6 +69,10 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
 
     // Request by URL
     if let Some(uri) = &opt.uri {
+        if let Some(port) = opt.port {
+            api.set_rest_port(port);
+        }
+
         let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
         if let Some(data) = &opt.data {
             api.post(uri, data.clone())
@@ -100,7 +106,26 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
 
     // Format JSON string
     if let Some(text) = &opt.json {
-        let json: Value = serde_json::from_str(text)?;
+        let json: Value = match hex::decode(text) {
+            Ok(txt) => {
+                let mut decoder = ZlibDecoder::new(txt.as_slice());
+                let mut s = String::new();
+                let _ = decoder.read_to_string(&mut s)?;
+                println!("{s}");
+                println!("{}", "=".repeat(80));
+                let s = s
+                    .replace("\"", "\\\"")
+                    .replace("u'", "\"")
+                    .replace("'", "\"")
+                    .replace("True", "true")
+                    .replace("False", "false")
+                    .replace("None", "null")
+                    .replace("L", "");
+                serde_json::from_str(&s)?
+            }
+            Err(_) => serde_json::from_str(text)?,
+        };
+
         println!("{json:#}");
         return Ok(true);
     }

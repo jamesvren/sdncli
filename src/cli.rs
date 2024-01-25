@@ -12,6 +12,10 @@ pub struct Opts {
     #[arg(short, long, group = "input")]
     pub file: Option<PathBuf>,
 
+    /// API Port for Request URI
+    #[arg(short, long, requires = "url")]
+    pub port: Option<u32>,
+
     /// Request data
     #[arg(short, long, value_parser = json_parser, requires = "url")]
     pub data: Option<Value>,

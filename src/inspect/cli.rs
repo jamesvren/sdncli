@@ -7,6 +7,10 @@ struct Opts {
     #[arg(required = true)]
     ip: String,
 
+    /// Introspect port number
+    #[arg(short, long)]
+    port: Option<u32>,
+
     /// Service want to be inspected
     #[command(subcommand)]
     service: Service,
@@ -25,6 +29,9 @@ enum Common {
 
     /// Url to query
     Url { uri: Option<String> },
+
+    /// Sandesh UVE
+    Uve { uve: Option<String> },
 }
 
 #[derive(Subcommand)]
@@ -51,6 +58,11 @@ enum Service {
     },
     /// collector
     Collector {
+        #[command(subcommand)]
+        common: Common,
+    },
+    /// analysis-api
+    Analysis {
         #[command(subcommand)]
         common: Common,
     },
@@ -94,6 +106,16 @@ enum Service {
         #[command(subcommand)]
         common: Common,
     },
+    /// Dns
+    Dns {
+        #[command(subcommand)]
+        common: Common,
+    },
+    /// Dns
+    Dm {
+        #[command(subcommand)]
+        common: Common,
+    },
 }
 
 impl Service {
@@ -104,6 +126,7 @@ impl Service {
             Service::Config { .. } => 9084,
             Service::Control { .. } => 9083,
             Service::Collector { .. } => 8089,
+            Service::Analysis { .. } => 8090,
             Service::Qe { .. } => 7091,
             Service::Vrouter { .. } => 8085,
             Service::CfgNodeMgr { .. } => 8100,
@@ -112,6 +135,8 @@ impl Service {
             Service::DbNodeMgr { .. } => 8103,
             Service::Snmp { .. } => 6920,
             Service::Topology { .. } => 6921,
+            Service::Dns { .. } => 8092,
+            Service::Dm { .. } => 8096,
         }
     }
     fn get_common(&self) -> &Common {
@@ -121,6 +146,7 @@ impl Service {
             Service::Config { common, .. } => common,
             Service::Control { common, .. } => common,
             Service::Collector { common, .. } => common,
+            Service::Analysis { common, .. } => common,
             Service::Qe { common, .. } => common,
             Service::Vrouter { common, .. } => common,
             Service::CfgNodeMgr { common, .. } => common,
@@ -129,6 +155,8 @@ impl Service {
             Service::DbNodeMgr { common, .. } => common,
             Service::Snmp { common, .. } => common,
             Service::Topology { common, .. } => common,
+            Service::Dns { common, .. } => common,
+            Service::Dm { common, .. } => common,
         }
     }
 }
@@ -144,15 +172,22 @@ pub async fn handle_cli(matches: &ArgMatches) -> Result<(), anyhow::Error> {
         let cmd = Opts::from_arg_matches(matches)
             .map_err(|err| err.exit())
             .unwrap();
-        let ist = Introspect::new(&cmd.ip, cmd.service.to_port());
+        let port = match cmd.port {
+            Some(port) => port,
+            None => cmd.service.to_port(),
+        };
+        let ist = Introspect::new(&cmd.ip, port);
         match cmd.service.get_common() {
+            Common::Trace { buffer } => {
+                ist.get_trace(buffer).await?;
+            }
+            Common::Uve { uve } => {
+                ist.get_uve(uve).await?;
+            }
             Common::Log { level } => match level {
                 Some(level) => ist.set_logging(level.to_syslog()).await?,
                 None => ist.get_logging().await?,
             },
-            Common::Trace { buffer } => {
-                ist.get_trace(buffer).await?;
-            }
             Common::Url { uri } => match uri {
                 Some(uri) => {
                     if uri.ends_with(".xml") {

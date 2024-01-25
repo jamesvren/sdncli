@@ -130,7 +130,7 @@ fn gen_config() -> Result<(), Error> {
         uri = "/neutron/port"
 
         [[resource]]
-        cmd = "rtr"
+        cmd = "router"
         type = "router"
         uri = "/neutron/router"
 
@@ -229,6 +229,7 @@ fn gen_config() -> Result<(), Error> {
     "data": {
         "fields": [],
         "filters": {},
+        "id": "6665ab5e-b566-45e1-acb4-e4a00aa9729b",
         "resource": {
             "router:external": false,
             "name": "example",
@@ -246,7 +247,7 @@ fn gen_config() -> Result<(), Error> {
         "tenant_id": "ad88dd5d24ce4e2189a6ae7491c33e9d",
         "is_admin": true,
         "request_id": "req-b52fae02-899c-4dd5-814c-c1f67bcbf40f",
-        "operation": "CREATE",
+        "operation": "UPDATA",
         "type": "network"
     }
 }
@@ -257,7 +258,10 @@ fn gen_config() -> Result<(), Error> {
         get_name(FileType::Toml)?,
         toml::to_string(&config_toml).unwrap(),
     )?;
-    fs::write(get_name(FileType::Json)?, json5_str)?;
+    let path = get_name(FileType::Json)?;
+    if !path.exists() {
+        fs::write(get_name(FileType::Json)?, json5_str)?;
+    }
     Ok(())
 }
 

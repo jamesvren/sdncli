@@ -49,6 +49,15 @@ impl Introspect {
             None => self.get("Snh_SandeshTraceBufferListRequest?").await,
         }
     }
+    pub async fn get_uve(self, uve: &Option<String>) -> anyhow::Result<()> {
+        match uve {
+            Some(uve) => {
+                let url = format!("Snh_SandeshUVECacheReq?tname={}", uve);
+                self.get(&url).await
+            }
+            None => self.get("Snh_SandeshUVETypesReq?").await,
+        }
+    }
 }
 
 fn xml_parser(xml: &str, url: &str) -> anyhow::Result<()> {
@@ -57,16 +66,27 @@ fn xml_parser(xml: &str, url: &str) -> anyhow::Result<()> {
     let mut is_sandesh = false;
     let mut is_trace = false;
     let mut is_root = false;
+    let mut is_uve = false;
 
-    if url.starts_with("Snh_SandeshTrace") {
-        is_trace = true;
-    } else if url.ends_with(".xml") {
-        is_sandesh = true;
-    } else if url == "/" {
-        is_root = true;
-    } else if url.starts_with("Snh_") {
-        return format_xml(xml, false);
+    match url {
+        x if x.starts_with("Snh_SandeshTrace") => is_trace = true,
+        x if x.starts_with("Snh_SandeshUVETypesReq") => is_uve = true,
+        x if x.ends_with(".xml") => is_sandesh = true,
+        "/" => is_root = true,
+        x if x.starts_with("Snh_") => {
+            return format_xml(xml, false);
+        }
+        _ => unreachable!(),
     }
+    //if url.starts_with("Snh_SandeshTrace") {
+    //    is_trace = true;
+    //} if else if url.ends_with(".xml") {
+    //    is_sandesh = true;
+    //} else if url == "/" {
+    //    is_root = true;
+    //} else if url.starts_with("Snh_") {
+    //    return format_xml(xml, false);
+    //}
 
     //reader.trim_text(true);
     loop {
@@ -76,6 +96,11 @@ fn xml_parser(xml: &str, url: &str) -> anyhow::Result<()> {
                 match e.name().as_ref() {
                     b"trace_buf_name" | b"log_level" => {
                         txt.push(reader.read_text(e.name())?.to_string())
+                    }
+                    b"type_name" => {
+                        if is_uve {
+                            txt.push(reader.read_text(e.name())?.to_string())
+                        }
                     }
                     b"element" => {
                         let text = reader.read_text(e.name())?;
