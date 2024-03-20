@@ -6,7 +6,7 @@ mod rest;
 
 use chrono::NaiveDateTime;
 use clap::{ArgMatches, FromArgMatches as _};
-use cli::{Operations, Opts, OutputFormat, BUILDIN_CMD};
+use cli::{Operations, Opts, OutputFormat, Method, BUILDIN_CMD};
 use inspect::format_xml;
 use rest::resource::ResourceBuilder;
 use rest::rest::get_token;
@@ -80,6 +80,11 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
                 .output(&oformat, None)
                 .await?;
         } else {
+            if let Some(method) = &opt.method {
+                if method == &Method::Delete {
+                    api.delete(uri).await?.output(&oformat, None).await?;
+                }
+            }
             api.get(uri).await?.output(&oformat, None).await?;
         }
         println!("API IP: {}", api.host);

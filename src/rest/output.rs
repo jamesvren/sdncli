@@ -1,16 +1,21 @@
-use prettytable::{format, row, Cell, Row, Table};
+use comfy_table::modifiers::UTF8_ROUND_CORNERS;
+use comfy_table::presets::UTF8_FULL_CONDENSED;
+use comfy_table::*;
 use serde_json::Value;
 
 pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
     let mut table = Table::new();
     let mut len = 0;
-    table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+    table
+        .load_preset(UTF8_FULL_CONDENSED)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic);
     if value.is_array() {
         let array = value.as_array().unwrap();
         len = array.len();
         match fields {
             Some(fields) => {
-                table.set_titles((&fields).into());
+                table.set_header(&fields);
                 for obj in array {
                     let mut r = Vec::new();
                     if let Some(dict) = obj.as_object() {
@@ -20,15 +25,24 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
                             }
                         });
                     }
-                    table.add_row(Row::new(r));
+                    table.add_row(r);
                 }
             }
             None => {
                 for obj in array {
-                    table.add_row(row![Fguc => "KEY", "VALUE"]);
+                    table.add_row(vec![
+                        Cell::new("KEY")
+                            .fg(Color::Green)
+                            .add_attribute(Attribute::Underlined)
+                            .set_alignment(CellAlignment::Center),
+                        Cell::new("VALUE")
+                            .fg(Color::Green)
+                            .add_attribute(Attribute::Underlined)
+                            .set_alignment(CellAlignment::Center),
+                    ]);
                     if let Some(dict) = obj.as_object() {
                         dict.iter().for_each(|(k, v)| {
-                            table.add_row(row![k, v]);
+                            table.add_row(vec![k, &v.to_string()]);
                         });
                     }
                 }
@@ -39,25 +53,25 @@ pub fn json_to_table(value: &Value, fields: Option<Vec<String>>) {
         let dict = value.as_object().unwrap();
         match fields {
             Some(fields) => {
-                table.set_titles((&fields).into());
+                table.set_header(&fields);
                 let mut r = Vec::new();
                 fields.iter().for_each(|f| {
                     if let Some(v) = dict.get(f) {
                         r.push(Cell::new(&v.to_string()));
                     }
                 });
-                table.add_row(Row::new(r));
+                table.add_row(r);
             }
             None => {
                 dict.iter().for_each(|(k, v)| {
-                    table.add_row(row![k, v]);
+                    table.add_row(vec![k, &v.to_string()]);
                 });
             }
         }
     }
 
     if len != 0 {
-        table.printstd();
+        println!("{table}");
         println!("Total: {}", len);
     }
 }

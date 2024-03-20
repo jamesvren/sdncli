@@ -16,6 +16,10 @@ pub struct Opts {
     #[arg(short, long, requires = "url")]
     pub port: Option<u32>,
 
+    /// Request method
+    #[arg(short, long, value_enum, requires = "url")]
+    pub method: Option<Method>,
+
     /// Request data
     #[arg(short, long, value_parser = json_parser, requires = "url")]
     pub data: Option<Value>,
@@ -111,6 +115,23 @@ impl ToString for OutputFormat {
             OutputFormat::Table => String::from("table"),
             OutputFormat::Json => String::from("json"),
             OutputFormat::Text => String::from("text"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Method {
+    Post,
+    Get,
+    Delete,
+}
+
+impl ToString for Method {
+    fn to_string(&self) -> String {
+        match self {
+            Method::Post => String::from("post"),
+            Method::Get => String::from("get"),
+            Method::Delete => String::from("delete"),
         }
     }
 }

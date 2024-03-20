@@ -4,7 +4,6 @@ use crate::{
     rest::resource::ResourceBuilder,
 };
 use anyhow::anyhow;
-use async_trait::async_trait;
 use log::{debug, info};
 use reqwest::{self, Client, Method, RequestBuilder, Response};
 use serde_json::{self, json, Value};
@@ -24,12 +23,10 @@ pub struct Rest {
     token: String,
 }
 
-#[async_trait]
 pub trait RestBench {
     async fn send_bench(self, bench: bool) -> anyhow::Result<Response>;
 }
 
-#[async_trait]
 impl RestBench for RequestBuilder {
     async fn send_bench(self, bench: bool) -> anyhow::Result<Response> {
         let now = Instant::now();
@@ -50,12 +47,10 @@ impl RestBench for RequestBuilder {
     }
 }
 
-#[async_trait]
 pub trait Output {
     async fn output(self, fmt: &str, fields: Option<Vec<String>>) -> anyhow::Result<()>;
 }
 
-#[async_trait]
 impl Output for Response {
     async fn output(self, fmt: &str, fields: Option<Vec<String>>) -> anyhow::Result<()> {
         match self.content_length() {
@@ -144,6 +139,13 @@ impl Rest {
 
     pub async fn get(&mut self, uri: &str) -> anyhow::Result<Response> {
         self.request(reqwest::Method::GET, uri, None)
+            .await?
+            .send_bench(true)
+            .await
+    }
+
+    pub async fn delete(&mut self, uri: &str) -> anyhow::Result<Response> {
+        self.request(reqwest::Method::DELETE, uri, None)
             .await?
             .send_bench(true)
             .await
