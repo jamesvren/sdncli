@@ -137,6 +137,13 @@ impl Rest {
             .await
     }
 
+    pub async fn put(&mut self, uri: &str, body: Value) -> anyhow::Result<Response> {
+        self.request(reqwest::Method::PUT, uri, Some(body))
+            .await?
+            .send_bench(true)
+            .await
+    }
+
     pub async fn get(&mut self, uri: &str) -> anyhow::Result<Response> {
         self.request(reqwest::Method::GET, uri, None)
             .await?
@@ -257,6 +264,50 @@ pub async fn get_token(cfg: &config::Auth) -> anyhow::Result<String> {
             Ok(token["access"]["token"]["id"].as_str().unwrap().to_owned())
         }
     }
+}
+
+pub async fn reschedule_vgws(cfg: &config::Config) -> anyhow::Result<()> {
+    let mut api = Rest::new(&cfg);
+    let vgws: Value = api.request(reqwest::Method::GET, "/vgws", None)
+        .await?
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    if !vgws.is_object() {
+        Err(anyhow::anyhow!("No vgws foud!"))
+    } else {
+        let body = json!({ "vgw": { "virtual_router_refs": [] } });
+        for vgw in vgws["vgws"].as_array().unwrap() {
+            let id = vgw["uuid"].as_str().unwrap();
+            show_vgw(&mut api, &format!("/vgw/{id}")).await?;
+            println!("Reschedule vgw: {id}");
+            api.request(reqwest::Method::PUT, &format!("/vgw/{id}"), Some(body.clone()))
+                .await?
+                .send()
+                .await?
+                .error_for_status()?;
+        }
+        Ok(())
+    }
+}
+
+async fn show_vgw(api: &mut Rest, url: &str) -> anyhow::Result<()> {
+    let vgw: Value = api.request(reqwest::Method::GET, url, None)
+        .await?
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    match vgw["vgw"].get("virtual_router_refs") {
+        Some(v) => for vr in v.as_array().unwrap() {
+            println!("{} => {}", url, vr["to"]);
+        }
+        None => println!("{url} => None"),
+    }
+    Ok(())
 }
 
 #[cfg(test)]

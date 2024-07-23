@@ -55,10 +55,10 @@ pub fn read_config() -> Result<Config, Error> {
         Err(_) => {
             gen_config()?;
             println!("Config file `config.toml` generated in directory same as the executable.");
-            println!("- You can add command or change Api IP in config.toml");
-            println!("<Press Enter to continue ...>");
-            let mut buf = String::new();
-            io::stdin().read_line(&mut buf)?;
+            println!("- You can add command or change Api IP in config.toml\n");
+            //println!("<Press Enter to continue ...>");
+            //let mut buf = String::new();
+            //io::stdin().read_line(&mut buf)?;
             read_config()
         }
     }
@@ -87,13 +87,18 @@ pub fn read_json_file(file: &PathBuf) -> Result<FileConfig, Error> {
 
 //fn gen_config() -> io::Result<()> {
 fn gen_config() -> Result<(), Error> {
-    println!("Please input IP for api: ");
-    //io::stdout().flush().unwrap();
+    let vip = std::env::var("CONFIG_API_VIP");
+    let ip = match vip {
+        Ok(ip) => ip,
+        Err(_) => {
+            // Get IP from stdin user input
+            let mut ip = String::new();
+            println!("Please input IP for api: ");
+            io::stdin().read_line(&mut ip)?;
+            ip.trim().to_string()
+        },
+    };
 
-    // Get IP from stdin user input
-    let mut ip = String::new();
-    io::stdin().read_line(&mut ip)?;
-    let ip = ip.trim();
     ip.parse::<IpAddr>()?;
 
     let config_toml = toml::toml! {

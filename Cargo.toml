@@ -1,9 +1,10 @@
 [package]
 name = "sdncli"
-version = "0.1.0"
-author = "James R. <jamesvren@163.com>"
-about = "A command line to manipulate SDN resources (Introspect tools inside)."
+version = "0.1.2"
+authors = ["James R. <jamesvren@163.com>"]
+description = "A command line to manipulate SDN resources (Introspect tools inside)."
 edition = "2021"
+repository = "https://github.com/jamesvren/sdncli"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

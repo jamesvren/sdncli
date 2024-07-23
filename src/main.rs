@@ -8,10 +8,11 @@ use chrono::NaiveDateTime;
 use clap::{ArgMatches, FromArgMatches as _};
 use cli::{Operations, Opts, OutputFormat, Method, BUILDIN_CMD};
 use inspect::format_xml;
-use rest::resource::ResourceBuilder;
-use rest::rest::get_token;
-use rest::rest::Output;
-use rest::rest::Rest;
+use crate::rest::resource::ResourceBuilder;
+use crate::rest::rest::get_token;
+use crate::rest::rest::reschedule_vgws;
+use crate::rest::rest::Output;
+use crate::rest::rest::Rest;
 use serde_json::{json, Value};
 use uuid::Uuid;
 use flate2::read::ZlibDecoder;
@@ -74,18 +75,19 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
         }
 
         let oformat = output_format.unwrap_or(OutputFormat::Json).to_string();
-        if let Some(data) = &opt.data {
-            api.post(uri, data.clone())
-                .await?
-                .output(&oformat, None)
-                .await?;
-        } else {
-            if let Some(method) = &opt.method {
-                if method == &Method::Delete {
-                    api.delete(uri).await?.output(&oformat, None).await?;
-                }
+        match opt.method {
+            Some(Method::Post) => if let Some(data) = &opt.data {
+                api.post(uri, data.clone()).await?.output(&oformat, None).await?;
+            } else {
+                return Err(anyhow::anyhow!("Missing data"));
             }
-            api.get(uri).await?.output(&oformat, None).await?;
+            Some(Method::Put) => if let Some(data) = &opt.data {
+                api.put(uri, data.clone()).await?.output(&oformat, None).await?;
+            } else {
+                return Err(anyhow::anyhow!("Missing data"));
+            }
+            Some(Method::Delete) => api.delete(uri).await?.output(&oformat, None).await?,
+            _ => api.get(uri).await?.output(&oformat, None).await?,
         }
         println!("API IP: {}", api.host);
         return Ok(true);
@@ -152,11 +154,13 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
 async fn handle_buildin(matches: &ArgMatches) -> Result<bool, anyhow::Error> {
     let mut handled = false;
     let cfg = config::read_config()?;
-    for cmd in &BUILDIN_CMD {
-        if let Some(_matches) = matches.subcommand_matches(cmd) {
+    for cmd in BUILDIN_CMD {
+        if let Some(_matches) = matches.subcommand_matches(&cmd) {
             handled = true;
-            if *cmd == "token" {
-                println!("{}", get_token(&cfg.auth).await?);
+            match cmd {
+                "token" => println!("{}", get_token(&cfg.auth).await?),
+                "vgws" => reschedule_vgws(&cfg).await?,
+                _ => unreachable!(),
             }
         }
     }

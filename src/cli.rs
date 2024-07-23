@@ -57,7 +57,7 @@ pub struct Opts {
     pub cache: bool,
 }
 
-pub const BUILDIN_CMD: [&str; 2] = ["token", "loadbalance"];
+pub const BUILDIN_CMD: [&str; 3] = ["token", "loadbalance", "vgws"];
 
 pub fn build_cli() -> Result<Command, anyhow::Error> {
     let cmd = command!()
@@ -122,6 +122,7 @@ impl ToString for OutputFormat {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Method {
     Post,
+    Put,
     Get,
     Delete,
 }
@@ -130,6 +131,7 @@ impl ToString for Method {
     fn to_string(&self) -> String {
         match self {
             Method::Post => String::from("post"),
+            Method::Put => String::from("put"),
             Method::Get => String::from("get"),
             Method::Delete => String::from("delete"),
         }
