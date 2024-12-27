@@ -1,5 +1,12 @@
 use super::inspect::Introspect;
-use clap::{ArgMatches, Args, Command, FromArgMatches, Subcommand, ValueEnum};
+use clap::{
+    ArgMatches,
+    Args,
+    Command,
+    FromArgMatches,
+    Subcommand,
+    ValueEnum,
+};
 
 #[derive(Args)]
 struct Opts {
@@ -14,6 +21,21 @@ struct Opts {
     /// Service want to be inspected
     #[command(subcommand)]
     service: Service,
+}
+
+#[derive(Args)]
+#[command(subcommand_negates_reqs = true)]
+struct VrouterCommand {
+    #[command(subcommand)]
+    common: Option<Common>,
+
+    /// List all flow keys
+    #[arg(short, long, group = "flow", required = true)]
+    keys: Option<bool>,
+
+    /// Look up a flow item with a key. Drop reason can be patched.
+    #[arg(short, long, group = "flow", required = true)]
+    entry: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -72,10 +94,8 @@ enum Service {
         common: Common,
     },
     /// vrouter-agent
-    Vrouter {
-        #[command(subcommand)]
-        common: Common,
-    },
+    Vrouter(VrouterCommand),
+
     /// config-nodemgr
     CfgNodeMgr {
         #[command(subcommand)]
@@ -139,24 +159,24 @@ impl Service {
             Service::Dm { .. } => 8096,
         }
     }
-    fn get_common(&self) -> &Common {
+    fn get_common(&self) -> Option<&Common> {
         match self {
-            Service::Svc { common, .. } => common,
-            Service::Schema { common, .. } => common,
-            Service::Config { common, .. } => common,
-            Service::Control { common, .. } => common,
-            Service::Collector { common, .. } => common,
-            Service::Analysis { common, .. } => common,
-            Service::Qe { common, .. } => common,
-            Service::Vrouter { common, .. } => common,
-            Service::CfgNodeMgr { common, .. } => common,
-            Service::CtrlNodeMgr { common, .. } => common,
-            Service::VrNodeMgr { common, .. } => common,
-            Service::DbNodeMgr { common, .. } => common,
-            Service::Snmp { common, .. } => common,
-            Service::Topology { common, .. } => common,
-            Service::Dns { common, .. } => common,
-            Service::Dm { common, .. } => common,
+            Service::Svc { common, .. } => Some(common),
+            Service::Schema { common, .. } => Some(common),
+            Service::Config { common, .. } => Some(common),
+            Service::Control { common, .. } => Some(common),
+            Service::Collector { common, .. } => Some(common),
+            Service::Analysis { common, .. } => Some(common),
+            Service::Qe { common, .. } => Some(common),
+            Service::CfgNodeMgr { common, .. } => Some(common),
+            Service::CtrlNodeMgr { common, .. } => Some(common),
+            Service::VrNodeMgr { common, .. } => Some(common),
+            Service::DbNodeMgr { common, .. } => Some(common),
+            Service::Snmp { common, .. } => Some(common),
+            Service::Topology { common, .. } => Some(common),
+            Service::Dns { common, .. } => Some(common),
+            Service::Dm { common, .. } => Some(common),
+            Service::Vrouter(VrouterCommand { common, .. }) => common.as_ref(),
         }
     }
 }
@@ -177,27 +197,43 @@ pub async fn handle_cli(matches: &ArgMatches) -> Result<(), anyhow::Error> {
             None => cmd.service.to_port(),
         };
         let ist = Introspect::new(&cmd.ip, port);
-        match cmd.service.get_common() {
-            Common::Trace { buffer } => {
-                ist.get_trace(buffer).await?;
-            }
-            Common::Uve { uve } => {
-                ist.get_uve(uve).await?;
-            }
-            Common::Log { level } => match level {
-                Some(level) => ist.set_logging(level.to_syslog()).await?,
-                None => ist.get_logging().await?,
-            },
-            Common::Url { uri } => match uri {
-                Some(uri) => {
-                    if uri.ends_with(".xml") {
-                        ist.get(uri).await?
-                    } else {
-                        ist.get(&format!("Snh_{uri}")).await?
-                    }
+        let common_cmd = cmd.service.get_common();
+        if common_cmd.is_some() {
+            match common_cmd.unwrap() {
+                Common::Trace { buffer } => {
+                    ist.get_trace(buffer).await?;
                 }
-                None => ist.get("/").await?,
-            },
+                Common::Uve { uve } => {
+                    ist.get_uve(uve).await?;
+                }
+                Common::Log { level } => match level {
+                    Some(level) => ist.set_logging(level.to_syslog()).await?,
+                    None => ist.get_logging().await?,
+                },
+                Common::Url { uri } => match uri {
+                    Some(uri) => {
+                        if uri.ends_with(".xml") {
+                            ist.get(uri).await?
+                        } else {
+                            ist.get(&format!("Snh_{uri}")).await?
+                        }
+                    }
+                    None => ist.get("/").await?,
+                },
+            }
+        } else {
+            match cmd.service {
+                Service::Vrouter(vr_cmd) => {
+                    if let Some(key) = vr_cmd.keys {
+                        if key {
+                            ist.get(&format!("Snh_Inet4FlowTreeReq")).await?;
+                        }
+                    } else if let Some(entry) = vr_cmd.entry {
+                        ist.get(&format!("Snh_FlowsPerInetRouteFlowMgmtKeyReq?x={entry}")).await?;
+                    }
+                },
+                _ => unimplemented!()
+            }
         }
     }
 
