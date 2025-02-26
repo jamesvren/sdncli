@@ -42,6 +42,7 @@ pub struct Resource {
     #[serde(rename = "type")]
     pub resource: String,
     pub uri: String,
+    #[allow(dead_code)]
     pub attr: Option<toml::Value>,
 }
 

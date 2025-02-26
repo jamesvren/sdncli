@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use colored::Colorize;
 use log::{debug, info};
 use quick_xml::escape::unescape;
@@ -109,7 +109,7 @@ fn xml_parser(xml: &str, url: &str) -> anyhow::Result<()> {
                             let mut text = text.splitn(2, ' ');
                             let timestamp = text.next().unwrap();
                             let tms =
-                                NaiveDateTime::from_timestamp_micros(timestamp.parse::<i64>()?)
+                                DateTime::from_timestamp_micros(timestamp.parse::<i64>()?)
                                     .unwrap();
                             txt.push(
                                 format!("{tms} \u{1F449} {0} 👌", unescape(text.next().unwrap())?),

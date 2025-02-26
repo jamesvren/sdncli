@@ -4,7 +4,7 @@ mod db;
 mod inspect;
 mod rest;
 
-use chrono::NaiveDateTime;
+use chrono::DateTime;
 use clap::{ArgMatches, FromArgMatches as _};
 use cli::{Operations, Opts, OutputFormat, Method, BUILDIN_CMD};
 use inspect::format_xml;
@@ -97,9 +97,9 @@ async fn handle_cli(opt: &Opts) -> Result<bool, anyhow::Error> {
     if let Some(timestamp) = opt.timestamp {
         const A_BILLION: i64 = 1_000_000_000;
         let date = match timestamp / A_BILLION {
-            0..=9 => NaiveDateTime::from_timestamp_opt(timestamp, 0),
-            10..=9999 => NaiveDateTime::from_timestamp_millis(timestamp),
-            _ => NaiveDateTime::from_timestamp_micros(timestamp),
+            0..=9 => DateTime::from_timestamp(timestamp, 0),
+            10..=9999 => DateTime::from_timestamp_millis(timestamp),
+            _ => DateTime::from_timestamp_micros(timestamp),
         };
         println!("{date:?}");
         return Ok(true);
