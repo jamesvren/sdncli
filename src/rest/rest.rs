@@ -333,7 +333,7 @@ mod tests {
             }
         });
         let _response = api
-            .request(Method::POST, &String::from("neutron/network"), body)
+            .request(Method::POST, &String::from("neutron/network"), Some(body))
             .await?;
         Ok(())
     }
